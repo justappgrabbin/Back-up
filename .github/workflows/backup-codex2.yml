@@ -1,0 +1,32 @@
+name: Preserve unaltered Codex2 branches
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/backup-codex2.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  preserve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch every original Codex2 branch without modifying it
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git init --bare mirror.git
+          cd mirror.git
+          git remote add source https://github.com/justappgrabbin/Codex2.git
+          git fetch --prune source '+refs/heads/*:refs/remotes/source/*' '+refs/tags/*:refs/tags/*'
+          git remote add backup "https://x-access-token:${GH_TOKEN}@github.com/justappgrabbin/Back-up.git"
+          while IFS= read -r ref; do
+            branch="${ref#refs/remotes/source/}"
+            git push backup "${ref}:refs/heads/codex2/${branch}"
+          done < <(git for-each-ref --format='%(refname)' refs/remotes/source/)
+          while IFS= read -r ref; do
+            tag="${ref#refs/tags/}"
+            git push backup "${ref}:refs/tags/codex2/${tag}"
+          done < <(git for-each-ref --format='%(refname)' refs/tags/)
+          echo 'All Codex2 branch and tag refs copied to Back-up.'
